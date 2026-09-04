@@ -188,7 +188,19 @@ export function startHand(previous: FullGameState, seed: string, options: StartH
   postBlind(state, sbIndex, state.smallBlind, "small-blind");
   postBlind(state, bbIndex, state.bigBlind, "big-blind");
   state.currentBet = Math.max(...state.seats.map((seat) => seat.committedStreet));
-  state.activeIndex = activeCount === 2 ? state.buttonIndex : nextActor(state, bbIndex);
+  const preferredActor = activeCount === 2 ? state.buttonIndex : nextActor(state, bbIndex);
+  const preferredSeat = state.seats[preferredActor];
+  state.activeIndex = preferredSeat && !preferredSeat.folded && !preferredSeat.allIn && preferredSeat.stack > 0
+    ? preferredActor
+    : nextActor(state, preferredActor);
+
+  // A blind can put a short stack all-in before the first voluntary action.
+  // If the only player still able to act has already covered the live bet,
+  // there is no legal betting decision left, so deal the board immediately.
+  const actionCapable = state.seats.filter((seat) => !seat.folded && !seat.allIn && seat.stack > 0);
+  if (state.activeIndex < 0 || (actionCapable.length === 1 && actionCapable[0].committedStreet >= state.currentBet)) {
+    return runOut(state);
+  }
   return state;
 }
 

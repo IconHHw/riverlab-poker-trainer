@@ -183,6 +183,17 @@ test("heads-up all-in runs the board and conserves chips", () => {
   assert.equal(state.seats.reduce((sum, seat) => sum + seat.stack, 0), 150);
 });
 
+test("a forced short small-blind all-in runs out without waiting on the busted actor", () => {
+  const table = createTable({ smallBlind: 100, bigBlind: 200, difficulty: "standard", seats: seats([86, 7_914]) });
+  const state = startHand(table, "forced-short-small-blind", { refillBustedBots: false, requireFundedHuman: false });
+
+  assert.equal(state.status, "complete");
+  assert.equal(state.activeIndex, -1);
+  assert.equal(state.community.length, 5);
+  assert.equal(state.lastResult?.showdown, true);
+  assert.equal(state.seats.reduce((sum, seat) => sum + seat.stack, 0), 8_000);
+});
+
 test("a short all-in does not reopen raising but still permits an all-in call", () => {
   const table = createTable({ smallBlind: 5, bigBlind: 10, difficulty: "standard", seats: createSeatRoster(1000, "standard", "short-allin-lock") });
   const state = startHand(table, "short-allin-lock-hand");
