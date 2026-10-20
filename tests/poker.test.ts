@@ -841,7 +841,10 @@ function riverCoachAdvice(hole: string, board: string, facing = 0) {
   state.seats[0].stack = 720;
   state.seats[0].holeCards = cards(hole);
   if (facing > 0) {
-    state.seats[0].committedHand = 300 + facing;
+    // 下注记在行动者（对手）身上，英雄尚未跟注；这样 committedHand/committedStreet
+    // 的语义才是对的（旧写法把 facing 计到英雄头上，虽然底池总额与赔率恰好等价）。
+    state.seats[1].committedHand = 300 + facing;
+    state.seats[1].committedStreet = facing;
     state.actionLog.push({
       index: 0,
       playerId: state.seats[1].id,
