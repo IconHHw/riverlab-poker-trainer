@@ -820,3 +820,45 @@ test("training logger writes readable and structured progress logs", () => {
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+function riverCoachAdvice(hole: string, board: string) {
+  const table = createTable({ smallBlind: 5, bigBlind: 10, difficulty: "expert", seats: createSeatRoster(1000, "expert", "coach-text") });
+  const state = startHand(table, "coach-text");
+  state.handId = "coach-text";
+  state.street = "river";
+  state.community = cards(board);
+  state.currentBet = 0;
+  state.minRaise = state.bigBlind;
+  state.activeIndex = 0;
+  for (const [index, seat] of state.seats.entries()) {
+    seat.folded = index > 1;
+    seat.allIn = false;
+    seat.acted = false;
+    seat.raiseLocked = false;
+    seat.committedStreet = 0;
+    seat.committedHand = index <= 1 ? 300 : 0;
+  }
+  state.seats[0].stack = 720;
+  state.seats[0].holeCards = cards(hole);
+  return buildCoachAdvice(buildPlayerView(state, "hero"));
+}
+
+test("coach never explains a nut hand as folding out better hands", () => {
+  const spots: Array<[string, string, string]> = [
+    ["nut flush", "As Ks", "Qs 7s 2s 3d 9h"],
+    ["nut straight", "Jh Td", "9c 8s 2d 3h Qc"],
+    ["quads", "9c 9d", "9s 9h 7d 2c 3s"],
+    ["full house", "Kc Kh", "Ks 7d 7h 2c 3s"],
+  ];
+  for (const [label, hole, board] of spots) {
+    const advice = riverCoachAdvice(hole, board);
+    const reason = advice.beginner.actionReason;
+    assert.ok(reason.length > 0, `${label} 必须给出下注理由`);
+    const tier = advice.analysis.handProfile.relativeTier;
+    if (tier === "nuts" || tier === "near-nuts") {
+      // 禁止"让（部分）更好的牌弃掉"这类诈唬口径；允许"不存在比它更好的牌"这类否定式说明
+      assert.equal(/让[^。；]{0,12}更好的牌弃掉/.test(reason), false, `${label}（${tier}）的下注理由出现了"让更好的牌弃掉"：${reason}`);
+      assert.match(reason, /坚果/, `${label}（${tier}）的下注理由应点明坚果档：${reason}`);
+    }
+  }
+});
