@@ -1,4 +1,4 @@
-﻿import { createDeck, withoutCards } from "./cards";
+import { createDeck, withoutCards } from "./cards";
 import { SeededRng } from "./rng";
 import type { Card } from "./types";
 
@@ -10,6 +10,8 @@ export interface HandScore {
 }
 
 const CATEGORY_NAMES = ["高牌", "一对", "两对", "三条", "顺子", "同花", "葫芦", "四条", "同花顺"];
+/** CATEGORY_NAMES 中"顺子"的下标：补牌只统计达到顺子及以上的改善。 */
+const STRAIGHT_CATEGORY = CATEGORY_NAMES.indexOf("顺子");
 
 function straightHigh(ranks: number[]): number | null {
   const unique = [...new Set(ranks)].sort((a, b) => b - a);
@@ -127,13 +129,23 @@ export function estimateEquity(
   return equity / Math.max(1, iterations);
 }
 
+/**
+ * 统计"补牌"（outs）数：下一张公共牌能让手牌**直接完成顺子或同花**（或把已经成型的
+ * 顺子/同花继续升级为葫芦、四条、同花顺）的未知牌张数。
+ *
+ * 注意这里刻意不把"仅提升踢脚"或"高牌配成一对"算作补牌。旧实现用
+ * `compareScores(next, current) > 0` 判定，只要踢脚序列变大就算改善，导致翻牌后
+ * 几乎所有未知牌都被计入（实测可达 43~47 张），进而使 `outs >= 8` 这类"强听牌"门槛
+ * 恒真、教练据此把负 EV 跟注当成正确打法。按牌型等级判定后，典型值恢复为
+ * 同花听牌 9、两头顺 8、卡顺 4、无听牌 0。
+ */
 export function countImprovementOuts(heroCards: Card[], community: Card[]): number {
   if (community.length < 3 || community.length >= 5) return 0;
   const known = [...heroCards, ...community];
   const current = evaluateSeven(known);
   return withoutCards(createDeck(), known).filter((card) => {
     const next = evaluateSeven([...known, card]);
-    return compareScores(next, current) > 0;
+    return next.category >= STRAIGHT_CATEGORY && next.category > current.category;
   }).length;
 }
 

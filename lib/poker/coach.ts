@@ -28,7 +28,7 @@ export const GLOSSARY: Record<string, { zh: string; detail: string }> = {
   EV: { zh: "期望值", detail: "长期重复同类决策时的平均收益。" },
   blocker: { zh: "阻断牌", detail: "自己持有的牌降低对手拥有某些强牌组合的概率。" },
   SPR: { zh: "筹码底池比", detail: "有效剩余筹码除以当前底池，用来衡量后续下注空间。" },
-  outs: { zh: "补牌", detail: "能在下一张公共牌改善当前组合的未知牌张数。" },
+  outs: { zh: "补牌", detail: "下一张公共牌能直接完成顺子或同花（或把已成型的顺子/同花继续升级）的未知牌张数；仅提升踢脚不计。" },
   "pot odds": { zh: "底池赔率", detail: "跟注成本占跟注后总底池的比例。" },
   "thin value": { zh: "薄价值", detail: "用中等强度牌向更弱但可能跟注的牌下注。" },
   cooler: { zh: "冤家牌", detail: "双方都极强、通常很难合理逃脱的牌局。" },
@@ -207,7 +207,7 @@ export function buildCoachAdvice(view: PlayerViewState): CoachAdvice {
       if (outs >= 8) {
         concepts.add("semi-bluff");
         concepts.add("outs");
-        reasons.push(`${outs} 张改善牌提供继续游戏的缓冲，但 outs 只是牌力改善数，不等于干净且必胜的补牌。`);
+        reasons.push(`${outs} 张补牌能直接完成顺子或同花，为继续游戏提供缓冲；但补牌不等于干净且必胜的牌，仍要考虑对手的反向隐含赔率。`);
       }
       if (profile.drawClass === "non-nut-flush-draw") reasons.push("这是非坚果同花听牌：即使补中也可能输给更大同花，因此要为反向隐含赔率留出安全边际。 ");
       alternatives.push("位置不利、多人底池或对手范围极紧时，应把近似权益向下修正。 ");
