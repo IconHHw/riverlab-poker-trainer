@@ -338,7 +338,7 @@ function actionPurpose(
 ): string {
   if (action === "fold") return "cut-loss";
   if (action === "check") return profile.bluffCatcher ? "showdown-value" : equity >= 0.58 ? "pot-control" : "realize-equity";
-  // 补牌数只统计"下一张能直接完成顺子/同花"的牌；但若牌手自己没有任何听牌
+  // 补牌数只统计"能把牌型提升到顺子及以上"的牌；但若牌手自己没有任何听牌
   // （drawClass === "none"，例如四张公共牌同花、靠公共牌完成），把目的标成
   // "semi-bluff" 会和"没有主要听牌"的文案自相矛盾，因此要求确有听牌结构。
   const hasOwnDraw = profile.drawClass !== "none";
