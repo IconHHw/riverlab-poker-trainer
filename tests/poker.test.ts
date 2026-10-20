@@ -843,22 +843,42 @@ function riverCoachAdvice(hole: string, board: string) {
   return buildCoachAdvice(buildPlayerView(state, "hero"));
 }
 
-test("coach never explains a nut hand as folding out better hands", () => {
+const BLUFF_PHRASE = /让[^。；]{0,12}更(好|强)的牌(弃掉|放弃|弃牌)/;
+const FUTURE_CARD_PHRASE = /下一张牌|免费看牌|免费实现权益|拒绝免费牌/;
+const NUT_FRAMING = /是坚果牌|已经接近坚果/;
+
+test("coach explains nut hands as value, never as folding out better hands", () => {
+  // 期望档位写死：若相对档位分类漂移，这里直接失败，而不是让按档位生效的断言静默跳过。
+  const spots: Array<[string, string, string, string]> = [
+    ["nut flush", "As Ks", "Qs 7s 2s 3d 9h", "nuts"],
+    ["nut straight", "Jh Td", "9c 8s 2d 3h Qc", "nuts"],
+    ["quads", "9c 9d", "9s 9h 7d 2c 3s", "nuts"],
+    ["full house", "Kc Kh", "Ks 7d 7h 2c 3s", "near-nuts"],
+    ["board royal flush", "2c 3d", "Ah Kh Qh Jh Th", "nuts"],
+  ];
+  for (const [label, hole, board, expectedTier] of spots) {
+    const advice = riverCoachAdvice(hole, board);
+    const reason = advice.beginner.actionReason;
+    assert.equal(advice.analysis.handProfile.relativeTier, expectedTier, `${label} 的相对档位发生了变化`);
+    assert.equal(advice.action, "bet", `${label} 在当前筹码下应建议下注，否则会落到通用 all-in 文案`);
+    assert.equal(BLUFF_PHRASE.test(reason), false, `${label} 不应使用"让更好的牌弃掉"口径：${reason}`);
+    assert.match(reason, NUT_FRAMING, `${label} 应点明坚果档：${reason}`);
+    assert.equal(FUTURE_CARD_PHRASE.test(reason), false, `${label} 在河牌不应提到后续牌：${reason}`);
+  }
+});
+
+test("coach river explanations never refer to future cards", () => {
+  // 覆盖被改写的非坚果分支（fold-equity 等）与 check 分支的河牌措辞。
   const spots: Array<[string, string, string]> = [
-    ["nut flush", "As Ks", "Qs 7s 2s 3d 9h"],
-    ["nut straight", "Jh Td", "9c 8s 2d 3h Qc"],
-    ["quads", "9c 9d", "9s 9h 7d 2c 3s"],
-    ["full house", "Kc Kh", "Ks 7d 7h 2c 3s"],
+    ["air", "2c 7d", "Ks 9h 4d 3s Jc"],
+    ["TPTK", "Ac Kd", "Ks 7d 2h 9c 3s"],
+    ["overpair", "Ah Ad", "Ks 7d 2h 9c 3s"],
+    ["second nut flush", "Ks Js", "Qs 7s 2s 3d 9h"],
   ];
   for (const [label, hole, board] of spots) {
     const advice = riverCoachAdvice(hole, board);
     const reason = advice.beginner.actionReason;
-    assert.ok(reason.length > 0, `${label} 必须给出下注理由`);
-    const tier = advice.analysis.handProfile.relativeTier;
-    if (tier === "nuts" || tier === "near-nuts") {
-      // 禁止"让（部分）更好的牌弃掉"这类诈唬口径；允许"不存在比它更好的牌"这类否定式说明
-      assert.equal(/让[^。；]{0,12}更好的牌弃掉/.test(reason), false, `${label}（${tier}）的下注理由出现了"让更好的牌弃掉"：${reason}`);
-      assert.match(reason, /坚果/, `${label}（${tier}）的下注理由应点明坚果档：${reason}`);
-    }
+    assert.ok(reason.length > 0, `${label} 必须给出理由`);
+    assert.equal(FUTURE_CARD_PHRASE.test(reason), false, `${label} 在河牌不应提到后续牌：${reason}`);
   }
 });

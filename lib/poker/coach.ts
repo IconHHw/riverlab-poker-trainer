@@ -264,8 +264,12 @@ export function buildCoachAdvice(view: PlayerViewState): CoachAdvice {
   });
   const purpose = selectedCandidate?.purpose;
   // 坚果／近坚果档不存在（或几乎不存在）"比它更好的牌"，因此该档位绝不能用
-  // "让更好的牌弃掉"这类诈唬口径描述下注目的。见下方 actionReason 分支。
+  // "让更好的牌弃掉"这类诈唬口径描述下注目的（见下方 actionReason 分支）。
   const nutTier = profile.relativeTier === "nuts" || profile.relativeTier === "near-nuts";
+  // 河牌之后没有公共牌可发，任何"下一张牌／免费看牌／免费实现权益"的说法在河牌都不成立。
+  const river = view.street === "river";
+  // 板面本身即坚果等情形下，对手范围里根本没有愿意继续的更差牌，不能断言"从更差的牌取值"。
+  const noValueTarget = valueReach < 0.02;
   const neutralPercent = Math.round(neutralEquity * 100);
   const rangePercent = Math.round(equity * 100);
   const pricePercent = Math.round(potOdds * 100);
@@ -283,23 +287,35 @@ export function buildCoachAdvice(view: PlayerViewState): CoachAdvice {
   } else if (action === "check") {
     actionReason = profile.bluffCatcher || profile.relativeTier === "medium"
       ? `${profile.madeLabel}有一定摊牌价值，但暂时找不到足够多会跟注的更差牌，过牌控池更清楚。`
-      : "当前没有明确的价值目标或高质量诈唬目标，免费看下一张牌比勉强下注更好。";
+      : river
+        ? "当前没有明确的价值目标或高质量诈唬目标，河牌过牌保留摊牌价值比勉强下注更好。"
+        : "当前没有明确的价值目标或高质量诈唬目标，免费看下一张牌比勉强下注更好。";
   } else if (action === "all-in") {
     actionReason = "你的牌力与低 SPR 都支持投入剩余筹码；继续采用小尺度已经没有足够的后续下注空间。";
   } else if (nutTier) {
-    actionReason = profile.relativeTier === "nuts"
-      ? `${profile.madeLabel}是坚果牌：当前不存在比它更好的牌，下注的目标就是从更差的牌拿到最大价值，同时不让对手免费看下一张牌。`
-      : `${profile.madeLabel}已经接近坚果：能赢它的组合极少，下注仍以从更差的牌取值、拒绝免费牌为主。`;
+    const strengthText = profile.relativeTier === "nuts"
+      ? "是坚果牌：当前不存在比它更好的牌"
+      : "已经接近坚果：能赢它的组合极少";
+    if (noValueTarget) {
+      actionReason = `${profile.madeLabel}${strengthText}，但对手范围里愿意继续的更差牌也不多，这手下注主要是薄价值，不必期待很多跟注。`;
+    } else if (river) {
+      actionReason = `${profile.madeLabel}${strengthText}，河牌下注的目标就是从对手的跟注里拿到最大价值。`;
+    } else {
+      actionReason = `${profile.madeLabel}${strengthText}，下注的目标就是从更差的牌拿到最大价值，同时不让对手免费看下一张牌。`;
+    }
   } else if (purpose === "value" || purpose === "thin-value") {
     actionReason = `${profile.madeLabel}可以做价值下注：模型仍能找到愿意继续的更差牌，推荐${actionLabel}来收费。`;
   } else if (purpose === "semi-bluff") {
     actionReason = `${profile.drawLabel}适合半诈唬：对手现在弃牌可以直接获利，被跟注后你仍有补牌机会。`;
   } else if (purpose === "fold-equity") {
-    actionReason = `${profile.madeLabel}这次下注主要靠弃牌权益：让一部分当前更强的牌弃掉，同时避免对手免费实现权益。`;
+    actionReason = river
+      ? `${profile.madeLabel}这次下注主要靠弃牌权益：让一部分当前更强的牌弃掉。`
+      : `${profile.madeLabel}这次下注主要靠弃牌权益：让一部分当前更强的牌弃掉，同时避免对手免费实现权益。`;
   } else {
-    // range-protection（以及无法定位候选线路时的兜底）：描述为保护性下注，
-    // 不再默认套用"让更好的牌弃掉"的诈唬口径。
-    actionReason = `${profile.madeLabel}适合做保护性下注：既向可能继续的更差牌取值，也不给对手免费实现权益的机会。`;
+    // range-protection：描述为保护性下注，兜底时也不套用"让更好的牌弃掉"的诈唬口径。
+    actionReason = river
+      ? `${profile.madeLabel}适合做薄价值下注：向愿意继续的更差牌取值，让对手用更弱的牌做决定。`
+      : `${profile.madeLabel}适合做保护性下注：既向可能继续的更差牌取值，也不给对手免费实现权益的机会。`;
   }
 
   let lesson: string;
