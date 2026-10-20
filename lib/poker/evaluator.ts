@@ -10,8 +10,13 @@ export interface HandScore {
 }
 
 const CATEGORY_NAMES = ["高牌", "一对", "两对", "三条", "顺子", "同花", "葫芦", "四条", "同花顺"];
-/** CATEGORY_NAMES 中"顺子"的下标：补牌只统计达到顺子及以上的改善。 */
-const STRAIGHT_CATEGORY = CATEGORY_NAMES.indexOf("顺子");
+/** 牌型等级中"顺子"的下标（见 CATEGORY_NAMES 顺序）：补牌只统计达到顺子及以上的改善。 */
+const STRAIGHT_CATEGORY = 4;
+// 硬编码下标而非 indexOf("顺子")：一旦 CATEGORY_NAMES 被改动，indexOf 会静默返回 -1，
+// 使补牌判定退化成"任何牌型提升"且不报错。这里显式校验，改动顺序时立刻失败。
+if (CATEGORY_NAMES[STRAIGHT_CATEGORY] !== "顺子") {
+  throw new Error("CATEGORY_NAMES 的顺序改变了，需要同步 STRAIGHT_CATEGORY");
+}
 
 function straightHigh(ranks: number[]): number | null {
   const unique = [...new Set(ranks)].sort((a, b) => b - a);
