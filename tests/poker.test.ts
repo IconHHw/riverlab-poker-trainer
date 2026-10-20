@@ -7,7 +7,7 @@ import { createBotPersonality, createSeatRoster, chooseBotAction } from "../lib/
 import { auditAiReadability } from "../lib/poker/ai-audit";
 import { createDeck, parseCard, shuffledDeck, SUIT_SYMBOL } from "../lib/poker/cards";
 import { buildCoachAdvice } from "../lib/poker/coach";
-import { compareScores, evaluateFive, evaluateSeven } from "../lib/poker/evaluator";
+import { compareScores, countImprovementOuts, evaluateFive, evaluateSeven } from "../lib/poker/evaluator";
 import { applyAction, buildBotView, buildPlayerView, createTable, getLegalActions, potSize, settleShowdown, startHand } from "../lib/poker/engine";
 import { classifyRelativeHand } from "../lib/poker/hand-profile";
 import { buildBotLinePlan } from "../lib/poker/line-planner";
@@ -926,4 +926,22 @@ test("coach river explanations never refer to draws or future cards", () => {
     `这些牌例应覆盖非坚果分支，实际档位：${[...tiers].join(",")}`,
   );
   assert.ok(actions.size >= 2, `这些牌例应覆盖多种动作分支，实际动作：${[...actions].join(",")}`);
+});
+
+test("out counting reflects real draw outs, not kicker upgrades", () => {
+  // 旧实现用 compareScores > 0 判定"改善"，把踢脚升级也算成补牌，翻牌后可达 43~47 张，
+  // 使 outs >= 8 这类"强听牌"门槛恒真。这里钉住扑克标准值。
+  const cases: Array<[string, string, string, number]> = [
+    ["nut flush draw", "As 5s", "Qs 8s 2h", 9],
+    ["open-ended straight draw", "Jc Ts", "9d 8h 2c", 8],
+    ["gutshot", "Jc Ts", "9d 7h 2c", 4],
+    ["backdoor only", "Jc Ts", "9d 5c 2h", 0],
+    ["air with no draw", "7c 2d", "Kh Qd Js", 0],
+    ["set outs to full house or quads", "7c 7d", "7s Kh 2d", 7],
+    ["make one pair only (kicker upgrade must not count)", "Ac 4d", "Ks 7d 2h", 0],
+    ["river has no future card", "As Ks", "Qs 7s 2s 3d 9h", 0],
+  ];
+  for (const [label, hole, board, expected] of cases) {
+    assert.equal(countImprovementOuts(cards(hole), cards(board)), expected, `${label} 的补牌数不符`);
+  }
 });
