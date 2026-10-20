@@ -82,6 +82,8 @@ export function buildCoachAdvice(view: PlayerViewState): CoachAdvice {
   const profile = analysis.handProfile;
   const rangeResponse = analysis.rangeResponse;
   const made = profile.madeLabel;
+  // 河牌之后没有公共牌可发，任何"下一张牌／听牌／补牌／改善机会"的说法在河牌都不成立。
+  const river = view.street === "river";
   const valueReach = rangeResponse.weakerRangeShare * rangeResponse.worseHandsContinue;
   const betterFoldReach = rangeResponse.betterRangeShare * rangeResponse.betterHandsFold;
   const strongDraw = ["combo-draw", "nut-flush-draw", "open-ended"].includes(profile.drawClass);
@@ -172,7 +174,9 @@ export function buildCoachAdvice(view: PlayerViewState): CoachAdvice {
       } else {
         action = "raise";
         target = betTarget(view, profile.vulnerability >= 0.55 ? 0.72 : 0.55);
-        reasons.push(`${profile.madeLabel}位于强价值区，加注目标是让较弱成牌和高质量听牌付费，而不是单纯因为权益超过某个阈值。`);
+        reasons.push(river
+          ? `${profile.madeLabel}位于强价值区，加注目标是让较弱的成牌愿意继续投入，而不是单纯因为权益超过某个阈值。`
+          : `${profile.madeLabel}位于强价值区，加注目标是让较弱成牌和高质量听牌付费，而不是单纯因为权益超过某个阈值。`);
         reasons.push(rangeResponse.summary);
       }
       confidence = profile.relativeTier === "nuts" || profile.relativeTier === "near-nuts" ? "高" : "中";
@@ -210,7 +214,9 @@ export function buildCoachAdvice(view: PlayerViewState): CoachAdvice {
     } else {
       action = "fold";
       confidence = "高";
-      reasons.push(`当前相对牌力与听牌质量不足以覆盖 ${(potOdds * 100).toFixed(0)}% 的跟注门槛，弃牌能阻止负 EV 累积。`);
+      reasons.push(river
+        ? `当前相对牌力不足以覆盖 ${(potOdds * 100).toFixed(0)}% 的跟注门槛，弃牌能阻止负 EV 累积。`
+        : `当前相对牌力与听牌质量不足以覆盖 ${(potOdds * 100).toFixed(0)}% 的跟注门槛，弃牌能阻止负 EV 累积。`);
       alternatives.push("不要因为已经投入筹码而继续；此前投入属于沉没成本。 ");
     }
   } else {
@@ -224,7 +230,11 @@ export function buildCoachAdvice(view: PlayerViewState): CoachAdvice {
       target = betTarget(view, profile.vulnerability >= 0.56 ? 0.67 : 0.50);
       reasons.push(`${profile.madeLabel}具备价值下注条件；关键不是“牌型够大”，而是模型仍找到约 ${Math.round(valueReach * 100)}% 的整体范围覆盖量由较差牌继续。`);
       if (rangeResponse.valueTargets.length > 0) reasons.push(`主要价值目标（希望跟注的较差牌）包括：${rangeResponse.valueTargets.join("、")}。`);
-      reasons.push(profile.vulnerability >= 0.56 ? "牌面或当前牌力较脆弱，尺度可以偏大，向听牌和高张收取价格。" : "牌面较稳定，使用中小尺度可让更多较差牌继续。 ");
+      reasons.push(profile.vulnerability >= 0.56
+        ? river
+          ? "当前牌力较脆弱，尺度可以偏大，让较弱的成牌为摊牌付出更高价格。"
+          : "牌面或当前牌力较脆弱，尺度可以偏大，向听牌和高张收取价格。"
+        : "牌面较稳定，使用中小尺度可让更多较差牌继续。 ");
       alternatives.push("若找不到任何更差跟注范围，应选择过牌，而不是机械价值下注。 ");
     } else if (strongDraw && legal.canBet && betterFoldReach >= 0.02) {
       action = "bet";
@@ -266,8 +276,6 @@ export function buildCoachAdvice(view: PlayerViewState): CoachAdvice {
   // 坚果／近坚果档不存在（或几乎不存在）"比它更好的牌"，因此该档位绝不能用
   // "让更好的牌弃掉"这类诈唬口径描述下注目的（见下方 actionReason 分支）。
   const nutTier = profile.relativeTier === "nuts" || profile.relativeTier === "near-nuts";
-  // 河牌之后没有公共牌可发，任何"下一张牌／免费看牌／免费实现权益"的说法在河牌都不成立。
-  const river = view.street === "river";
   // 板面本身即坚果等情形下，对手范围里根本没有愿意继续的更差牌，不能断言"从更差的牌取值"。
   const noValueTarget = valueReach < 0.02;
   const neutralPercent = Math.round(neutralEquity * 100);
